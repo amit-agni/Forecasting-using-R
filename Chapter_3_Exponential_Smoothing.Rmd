@@ -1,0 +1,308 @@
+---
+title: 'Chapter 3 : Exponential Smoothing'
+author: "Amit Agni"
+date: "05/10/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(forecast)
+library(fpp2)
+library(here)
+#library(fpp)
+```
+
+These are the course notes from the Datacamp course Forecasting using R by Rob Hyndman.
+
+
+### Simple Exponential smoothing
+
+Naive() uses the last observation and meanf() uses the mean of all the observations. ESP is in between.  
+
+Simple exponential smoothing is suitable for forecasting data with no clear trend or seasonal pattern.  
+
+Forecasts are calculated using weighted averages, where the weights decrease exponentially as observations come from further in the past — the smallest weights are associated with the oldest observations.  
+
+Forecast Equation :  
+
+$\hat{y}_{T+1 | T} = \alpha y_{T} + \alpha(1-\alpha)y_{T-1} + \alpha(1-\alpha) ^{2}y_{T-2} + ....$
+
+where $0 \leq  \alpha \leq 1$ is the smoothing parameter.  
+
+The one-step-ahead forecast for time $T+1$ is a weighted average of all the observations in the series $y_{1},..., y_{T}$. The rate at which the weights descrease is controlled by $\alpha$  
+
+
+>For any  between 0 and 1, the weights attached to the observations decrease exponentially as we go back in time, hence the name “exponential smoothing”. If $\alpha$ is small (i.e., close to 0), more weight is given to observations from the more distant past. If $\alpha$ is large (i.e., close to 1), more weight is given to the more recent observations. 
+ 
+![](`r here("/images/esm_alphas.jpeg")`)
+
+
+>The __ses()__ function produces forecasts obtained using simple exponential smoothing (SES). The parameters are estimated using least squares estimation. All you need to specify is the time series and the forecast horizon; the default forecast time is h = 10 years.
+
+> __fitted()__ is a generic function which extracts fitted values from objects returned by modeling functions. fitted.values is an alias for it.
+
+> __autolayer()__  uses ggplot2 to draw a particular layer for an object of a particular class in a single command. 
+
+```{r}
+# Use ses() to forecast the next 10 years of winning times
+fc <- ses(marathon, h = 10)
+
+# Use summary() to see the model parameters
+summary(fc)
+
+# Use autoplot() to plot the forecasts
+autoplot(fc)
+
+# Add the one-step forecasts for the training data to the plot
+autoplot(fc) + autolayer(fitted(fc))
+
+
+```
+Example to calculate the forecast accuracy
+
+```{r}
+#Using subset.ts(), create a training set for marathon comprising all but the last 20 years of the data which you will reserve for testing.
+
+# Create a training set using subset()
+train <- subset(marathon, end = length(marathon) - 20)
+
+# Compute SES and naive forecasts, save to fcses and fcnaive
+fcses <- ses(train, h = 20)
+fcnaive <- naive(train, h = 20)
+
+# Calculate forecast accuracy measures
+accuracy(fcses, marathon)
+accuracy(fcnaive, marathon)
+
+# Save the best forecasts as 
+#More complex models aren't always better!
+fcbest <- fcnaive
+
+```
+
+### Exponential Smoothing with Trend
+
+>Holt (1957) extended simple exponential smoothing to allow the forecasting of data with a trend. This method involves a forecast equation and two smoothing equations (one for the level and one for the trend):
+
+>
+Forecast equation &nbsp;&nbsp;&nbsp; $\hat{y}_{t+h|t} = \ell_{t} + hb_{t}$  
+Level equation &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  $\ell_{t} = \alpha y_{t} + (1 -\alpha)(\ell_{t-1} + b_{t-1})$  
+Trend equation &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  $b_{t} = \beta^*(\ell_{t} - \ell_{t-1}) + (1 -\beta^*)b_{t-1}$  
+where   
+$\ell_t$ denotes an estimate of the level of the series at time $t$  
+$b_t$ denotes an estimate of the trend (slope) of the series at time $t$  
+$\alpha$ is the smoothing parameter for the level $0\le\alpha\le1$  
+$\beta^*$ is the smoothing parameter for the trend $0\le\beta^*\le1$  
+(We denote this as $\beta^*$ instead of $\beta$ for reasons that will be explained in Section 7.5
+
+
+>Gardner & McKenzie (1985) introduced a parameter that “dampens” the trend to a flat line some time in the future. Methods that include a damped trend have proven to be very successful, and are arguably the most popular individual methods when forecasts are required automatically for many series.
+
+```{r}
+tail(austa,10)
+
+# Produce 10 year forecasts of austa using holt()
+fcholt <- holt(austa, h = 10)
+
+# Look at fitted model using summary()
+summary(fcholt)
+
+# Plot the forecasts
+autoplot(fcholt)
+
+# Check that the residuals look like white noise
+checkresiduals(fcholt)
+
+```
+
+Forecasting using damped method
+
+```{r}
+#PI - Prediction intervals
+autoplot(austa) +
+    autolayer(holt(austa,h=20), series ="Holts method", PI=FALSE) +
+    autolayer(holt(austa,h=20,damped = TRUE), series ="Damped Holts method",PI=FALSE) +
+    ggtitle("International visitors to AU forecasts") +
+    xlab("Year") +
+    ylab("Visitors in million") +
+    guides(colour=guide_legend(title="Forecast"))
+
+```
+
+### Exponential Smoothing with Trend and Seasonality
+
+>Holt (1957) and Winters (1960) extended Holt’s method to capture seasonality. The Holt-Winters seasonal method comprises the forecast equation and three smoothing equations — one for the level $\ell_t$, one for the trend $b_t$, and one for the seasonal component $s_t$, with corresponding smoothing parameters $\alpha$, $\beta^∗$ and $\gamma$.We use $m$ to denote the frequency of the seasonality, i.e., the number of seasons in a year. For example, for quarterly data $m=4$, and for monthly data $m=12$
+ 
+>There are two variations to this method that differ in the nature of the seasonal component.
+
+>* The additive method is preferred when the seasonal variations are roughly constant through the series, while the multiplicative method is preferred when the seasonal variations are changing proportional to the level of the series.   
+* With the additive method, the seasonal component is expressed in absolute terms in the scale of the observed series, and in the level equation the series is seasonally adjusted by subtracting the seasonal component. Within each year, the seasonal component will add up to approximately zero.   
+* With the multiplicative method, the seasonal component is expressed in relative terms (percentages), and the series is seasonally adjusted by dividing through by the seasonal component. Within each year, the seasonal component will sum up to approximately $m$
+
+> The different methods are summarised in this table
+
+![](`r here("/images/esm_methods.jpeg")`)
+
+![](`r here("/images/esm_methods_equations.jpeg")`)
+
+
+Example
+
+```{r}
+tail(a10,20)
+frequency(a10)
+# Plot the data
+autoplot(a10)
+
+# Produce 3 year forecasts
+fc <- hw(a10, seasonal = "multiplicative", h = 12*3)
+
+# Check if residuals look like white noise
+# The forecasts might still provide useful information even with residuals that fail the white noise test.
+checkresiduals(fc)
+whitenoise <- FALSE
+
+# Plot forecasts
+autoplot(fc)
+
+```
+
+##### Holt-Winters method with daily data
+
+The Holt-Winters method can also be used for daily type of data, where the seasonal pattern is of length 7, and the appropriate unit of time for h is in days.
+
+```{r}
+head(hyndsight,10)
+
+# Create training data with subset()
+#set up a training set where the last 4 weeks of the available data in hyndsight have been omitted.
+train <- subset(hyndsight, end = length(hyndsight) - 28)
+
+# Holt-Winters additive forecasts 
+#Produce forecasts for these last 4 weeks using hw() and additive seasonality applied to the training data.
+fchw <- hw(train, seasonal = "additive", h = 28)
+
+# Seasonal naive forecasts as fcsn
+fcsn <- snaive(train,h=28)
+
+# Find better forecasts with accuracy()
+accuracy(fchw, hyndsight)
+accuracy(fcsn, hyndsight)
+
+# Plot the better forecasts
+autoplot(fchw)
+
+
+```
+
+### State Space Models and Automatic Exponential Smoothing 
+
+The three possible trend components (None, Additive, Damped) and three possible seasonal components (None, Additive Multiplicative) gives us 9 possible Exponential Smoothing Methods.  
+
+>Each model consists of a measurement equation that describes the observed data, and some state equations that describe how the unobserved components or states (level, trend, seasonal) change over time. Hence, these are referred to as __state space models__. 
+
+>For each method there exist two models: one with __additive errors__ and one with __multiplicative errors__. The point forecasts produced by the models are identical if they use the same smoothing parameter values. They will, however, generate different prediction intervals.
+
+>To distinguish between a model with additive errors and one with multiplicative errors (and also to distinguish the models from the methods), we add a third letter to the classification. We label each state space model as ETS $(\cdot,\cdot,\cdot)$ for (Error, Trend, Seasonal). 
+ 
+ 
+##### Model Estimation and Model Selection
+__Estimating the model parameters__ can be done by minimising the sum of the squared errors. Alternatively, we can use __maximum likelihood__. The likelihood is the probability that the data is arising from the specified model, so a larger likelihood indicates a good model.  
+For additive error model, maximum likelihood and minimising the SSE will give same results. But for multiplicative error models the results will be different.  
+
+
+__Model Selection__ can be done using multiple ways e.g. Adjusted $R^2$, AIC, AICc and BIC. (TO DO : Review section 5.5 of the book). The ETS model uses Information Criteria for model selection.  
+
+_Note that_  
+* _ETS(A,N,M), ETS(A,A,M) and ETS(A,$A_d$,M) can cause div by zero instabilities hence are not considered when selecting a model_    
+* _Models with multiplicative errors are useful when the data are strictly positive, but are not numerically stable when the data contain zeros or negative values. Therefore, multiplicative error models will not be considered if the time series is not strictly positive. In that case, only the six fully additive models will be applied._
+
+
+The ets() function provides a completely automatic way of producing the forecasts. The ets() doesn't produce forecasts on its own, so we have to pass it to the forecast() function.  
+The ETS(A,A,N) is selected for the fitaus model and ETS(A,N,A) is selected for the fiths model. Note the Information Critieria values for fiths are very high and also it fails the residuals test. __(TO DO)__
+
+```{r}
+# Fit ETS model to austa in fitaus
+fitaus <- ets(austa)
+summary(fitaus)
+checkresiduals(fitaus)
+# Plot forecasts
+autoplot(forecast(fitaus))
+
+# Repeat for hyndsight data in fiths
+fiths <- ets(hyndsight)
+summary(fiths)
+checkresiduals(fiths)
+autoplot(forecast(fiths))
+
+# Which model(s) fails test? (TRUE or FALSE)
+fitausfail <- FALSE
+fithsfail <- TRUE
+
+```
+
+Example with cement dataset (Not working as cement ds is not ts ???). eval has been set to FALSE
+
+```{r eval=FALSE}
+frequency(cement)
+# Function to return ETS forecasts
+fets <- function(y, h) {
+  forecast(ets(y), h = h)
+}
+
+# Apply tsCV() for both methods
+e1 <- tsCV(cement, forecastfunction = fets, h = 4)
+e2 <- tsCV(cement, forecastfunction = snaive, h = 4)
+
+# Compute MSE of resulting errors (watch out for missing values)
+mean(e1^2, na.rm=TRUE)
+mean(e2^2, na.rm=TRUE)
+
+# Copy the best forecast MSE
+# Complex isn't always better !!!
+bestmse <- mean(e2^2, na.rm=TRUE)
+
+```
+
+Example : Computing the ETS does not work well for all series.
+
+Here, you will observe why it does not work well for the annual Canadian lynx population 
+
+```{r}
+# Plot the lynx series
+autoplot(lynx)
+
+# Use ets() to model the lynx series
+fit <- ets(lynx)
+
+# Use summary() to look at model and parameters
+summary(fit)
+
+# Plot 20-year forecasts of the lynx series
+# It's important to realize that ETS doesn't work for all cases.
+fit %>% forecast(h=20) %>% autoplot()
+
+```
+
+
+
+##### Match the plots
+
+![](`r here("/images/ets_spot_the_model.jpeg")`)  
+
+A. ETS(M,N,M) B. ETS(A,A,N) C. ETS(M,M,N) D. ETS(M,Ad,M)  
+
+# Summary
+* __Exponential Smoothing__ is in between naive() that uses the last observation and meanf() that uses mean of all observations  
+* In __Simple Exponential Smoothing__ $\alpha$ is the smoothing parameter that is estimated by the __ses() function__ using least squares estimation  
+* __stats::fitted()__  is a baseR function that extracts values from objects returned by modeling functions  
+* __autolayer()__ uses ggplot2 to draw a particular layer eg __autolayer(fitted(ts_model))__  
+* __forecast::accuracy()__ is used to compare models and gives summary of measures like ME, RMSE,MAE,MPE,MAPE, MASE,ACF1, Theil's U  
+* __forecast::holt()__ forecasts data with a trend, damped = TRUE is for the damped method
+* Remember to use __summary() and checkresiduals()__ to check the paramters and white noise respectively
+* __hw(,seasonal = "additive/multiplicative", m = frequency of seasonality)__ is the extension of __holt()__ to capture seasonality
+* __ets()__ (Error Trend Seasonal) automatically selects the best ESM model and we can produce forecasts using __forecast()__. Exceptions apply.
+* The selected model can be seen using __summary()__. Parameter ($\alpha,\beta,\gamma$) estimation is done using maximum likelihood. 
+* __ets()__ doesnt work for all time series
+

@@ -1,0 +1,209 @@
+---
+title: "Chapter 1 : Exploring and Visualising Time Series in R"
+author: "Amit Agni"
+date: "23/09/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+
+```
+
+These are the course notes from the Datacamp course Forecasting using R by Rob Hyndman. 
+
+### ts objects and time plots
+* Equally spaced ts in R are called regular ts ?
+* Time info is stored in a ts object in R
+* **which.max()** can be used to identify the smallest index of the maximum value
+* Lets look at the three existing ts objects in the forecast package
+* The autoplot is a function from forecast package
+
+```{r autoplots}
+library(forecast)
+str(gold)
+head(gold,50)
+autoplot(gold)
+
+str(gas)
+frequency(gas)
+head(gas,50)
+autoplot(gas)
+
+str(woolyrnq)
+frequency(woolyrnq)
+head(woolyrnq,50)
+autoplot(woolyrnq)
+
+```
+
+### Three different types of plots for studying seasonality
+
+> Along with time plots, there are other useful ways of plotting data to emphasize seasonal patterns and show changes in these patterns over time.  
+
+> * A seasonal plot is similar to a time plot except that the data are plotted against the individual “seasons” in which the data were observed. You can create one using the __ggseasonplot()__ function the same way you do with autoplot().  
+* An interesting variant of a season plot uses polar coordinates, where the time axis is circular rather than horizontal; to make one, simply add a polar argument and set it to TRUE.  
+* A subseries plot comprises mini time plots for each season. Here, the mean for each season is shown as a blue horizontal line.
+One way of splitting a time series is by using the window() function, which extracts a subset from the object x observed between the times start and end.  
+
+* fpp2 package will be used 
+* Lets look at the 2 datasets mentioned in the course
+
+$\color{red} {\text{How are the seasons determined ???}} $
+
+```{r}
+library(fpp2)
+str(a10)
+head(a10,50)
+frequency(a10)
+autoplot(a10)
+ggseasonplot(a10)
+ggseasonplot(a10,polar = TRUE)
+
+str(ausbeer)
+head(ausbeer,50)
+frequency(ausbeer)
+autoplot(ausbeer)
+ggseasonplot(ausbeer)
+ggseasonplot(a10,polar = TRUE)
+
+
+```
+
+* The window function can be used to window the data
+```{r}
+
+window(ausbeer,start = 1992)
+
+```
+
+### Trends, Seasonality and cyclicity
+
+* Trend : Longterm increase or decrease in data
+* Seasonal : Period pattern due to calender (eg month, DOW)
+* Cyclic : Pattern due to not fixed period, eg recession 
+
+### Autocorrelation of non-seasonal time series
+
+> Another way to look at time series data is to plot each observation against another observation that occurred some time previously by using gglagplot(). For example, you could plot $y_{t}$ against $y_{t-1}$. This is called a lag plot because you are plotting the time series against lags of itself.  
+
+> The correlations associated with the lag plots form what is called the autocorrelation function (ACF). The ggAcf() function produces ACF plots.  
+
+$\color{red} {\textbf{the number of cols corresponds to the frequency of the data ???}} $ 
+$\color{red} {\textbf{need to read more about wha gglagplot() and ggAcf() does ???}} $
+
+
+The gglagplot() plots the __correlation__ of $y_{t}$ against $y_{t-k}$ for different values of k. So for the oil lag plot, we can see there is a relationship only at lag 1. The oil data is yearly with frequency = 1 and not much seasonality is seen in the data.   
+But if we look at the ausbeer data there is strong positive correlation at lag 4 and lag 8 which indicates strong seasonlity in the data. A nenative relationship is seen for lag 2 and 6 thats because the peaks of Q4 are plotted against the off-peaks of Q2 (and similarly Q8 against Q6)
+
+
+```{r}
+str(oil)
+oil
+autoplot(oil)
+gglagplot(oil)
+window(ausbeer,start = 1992)
+autoplot(window(ausbeer,start = 1992))
+gglagplot(window(ausbeer,start = 1992))
+```
+
+
+### Autocorrelation of seasonal and cyclic time series
+
+> When data are either seasonal or cyclic, the ACF will peak around the seasonal lags or at the average cycle length.  
+
+Autocorrelation is the linear relationship between the lagged values of a time series. From the previous plot we saw that there is strong positive correlation at lag4 and strong negative at lag2 which can been seen also in the ACF (autocorrelation function) plot below. The plot is also known as **correlogram**  
+The seasonal patten indicates the peaks happen every fourth quarter and off-peaks every 2 quarters.
+
+```{r}
+
+ggAcf(window(ausbeer,start = 1992))
+
+ggAcf(window(ausbeer,start = 1992))$data
+
+```
+
+> Excercise : Match the time series plots with their corresponging ACF plots
+
+![](`r here("/images/match_acf_plots.jpeg")`)
+Correct answer : 1-B, 2-A, 3-D, 4-C
+
+* __1-B__ : When data have a trend, the autocorrelations for small lags tend to be large and positive because observations nearby in time are also nearby in size. So the ACF of trended time series tend to have positive values that slowly decrease as the lags increase.  
+
+* __2-A and 4-C__ : When data are seasonal, the autocorrelations will be larger for the seasonal lags (at multiples of the seasonal frequency) than for other lags.  
+
+* __3-D__ : When data are both trended and seasonal, you see a combination of these effects.   
+
+* Trends induce positive correlations in the early lags.
+* Seasonality will induce peaks at the seasonal lags.
+* Cyclicity induces peaks at the average cycle length.
+
+## White noise
+
+Time series that show no autocorrelation are called white noise.  
+  
+  
+For white noise series, we expect each autocorrelation to be close to zero. Of course, they will not be exactly equal to zero as there is some random variation.  
+
+For a white noise series, we expect 95% of the spikes in the ACF to lie within  $\pm 2 / \sqrt{T}$ where T is the length of the time series. It is common to plot these bounds on a graph of the ACF (the blue dashed lines above). If one or more large spikes are outside these bounds, or if substantially more than 5% of spikes are outside these bounds, then the series is probably not white noise.
+  
+
+
+>As you learned in the video, white noise is a term that describes purely random data. You can conduct a Ljung-Box test using the function below to confirm the randomness of a series; a p-value greater than 0.05 suggests that the data are not significantly different from white noise.
+
+Box.test(pigs, lag = 24, fitdf = 0, type = "Ljung")  
+
+>There is a well-known result in economics called the "Efficient Market Hypothesis" that states that asset prices reflect all available information. A consequence of this is that the daily changes in stock prices should behave like white noise (ignoring dividends, interest rates and transaction costs). The consequence for forecasters is that the best forecast of the future price is the current price.
+
+> You can test this hypothesis by looking at the goog series, which contains the closing stock price for Google over 1000 trading days ending on February 13, 2017. This data has been loaded into your workspace.
+
+
+### Plot the original series
+```{r}
+autoplot(goog)
+```
+
+
+### Plot the differenced series
+```{r}
+autoplot(diff(goog))
+
+```
+
+
+### ACF of the differenced series
+```{r}
+ggAcf(diff(goog))
+
+```
+
+
+### Ljung-Box test of the differenced series
+```{r}
+Box.test(diff(goog), lag = 24, type = "Ljung")
+
+```
+
+
+
+A small number of correlations outside the blue lines is expected. There are 29 spikes plotted here, and we would expect about 5% of them to be significant by chance. The Ljung-Box test indicates if the number and size of these is enough to think that the series is not white noise.
+
+
+## Summary
+* A regular dataframe has to be converted to a ts object using start and frequency parameters
+* __autoplot()__ can be used for visualising the ts object
+* __ggseasonplot()__ and its variant with polar=TRUE, can be used for faceting the plot with seasons
+* __window(,start=1900)__ for filtering 
+* __gglagplot()__ plots the correlation of $y_{t}$ against $y_{t-k}$ for different values of k
+    + And can be used to find the lags that have high correlation coeff
+* __ggAcf()__ or the autocorrelation plot also known as a correlogram can also be used to visualise the highs and lows at different lags
+    + And also to determine whether the data is __trend__ ing or __season__ al or cyclic
+    + It can also be used to determine whether there is no autocorrelation and that the time series is __White Noise__
+    + Box.test() is used to test for significance of White noise  
+    
+
+
+
+
+

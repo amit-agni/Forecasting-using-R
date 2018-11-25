@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1538702648437.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4211721208",
+    "id" : "94992B6B",
+    "lastKnownWriteTime" : 1538783303,
+    "last_content_update" : 1538783303,
+    "path" : "/Mac Backup/OneDrive/R/Self-Study/DataCamp/Forecasting using R/Chapter_3_Exponential_Smoothing.Rmd",
+    "project_path" : "Chapter_3_Exponential_Smoothing.Rmd",
+    "properties" : {
+        "cursorPosition" : "18,0",
+        "scrollLine" : "0",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

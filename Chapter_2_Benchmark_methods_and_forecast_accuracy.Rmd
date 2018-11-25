@@ -1,0 +1,190 @@
+---
+title: 'Chapter 2 : Benchmark methods and forecast accuracy'
+author: "Amit Agni"
+date: "27/09/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(forecast)
+library(fpp2)
+library(fpp)
+
+```
+
+These are the course notes from the Datacamp course Forecasting using R by Rob Hyndman.
+
+
+### Simple forecasting methods
+
+There are four forecasting methods that can be used as benchmark for our forecasts.  
+* __Average Method__ : Forecast of all future values are a average of the historical data  
+* __Naive method__ : Forecast are the value of the last observation. Use function naive()    
+* __Seasonal Naive__ : Each forecast is equal to the last observed value from the same season of the year (eg same month previous year). Use function snaive(), the second argument h, which specifies the number of values you want to forecast  
+* __Drift Method__ : Same as Naive but allows forecasts to increase or decrease over time, and the amount of change (drift) is the average change seen in the historical data  
+
+
+
+
+```{r }
+autoplot(naive(goog,h = 100))
+autoplot(snaive(ausbeer,h=100))
+
+```
+
+
+### Transformations and adjustments - TBD
+
+> four kinds of adjustments: calendar adjustments, population adjustments, inflation adjustments and mathematical transformations. The purpose of these adjustments and transformations is to simplify the patterns in the historical data by removing known sources of variation or by making the pattern more consistent across the whole data set. Simpler patterns usually lead to more accurate forecasts.
+
+### Residual Diagnostics
+
+Residuals are used to check whether the model has adequately captured the information in the data. A good forecasting method has residuals with following four properties :  
+
+1. Residuals are uncorrelated  
+2. Residuals have zero mean
+
+>Any forecasting method that does not satisfy these properties can be improved. However, that does not mean that forecasting methods that satisfy these properties cannot be improved. It is possible to have several different forecasting methods for the same data set, all of which satisfy these properties. Checking these properties is important in order to see whether a method is using all of the available information, but it is not a good way to select a forecasting method.
+
+>If either of these properties is not satisfied, then the forecasting method can be modified to give better forecasts. Adjusting for bias is easy: if the residuals have mean  $m$, then simply add  $m$ to all forecasts and the bias problem is solved. Fixing the correlation problem is harder, and we will not address it until Chapter 9.
+
+3. Residuals have constant variance
+4. Residuals are normally distributed  
+
+>These two properties make the calculation of prediction intervals easier (see Section 3.5 for an example). However, a forecasting method that does not satisfy these properties cannot necessarily be improved. Sometimes applying a Box-Cox transformation may assist with these properties, but otherwise there is usually little that you can do to ensure that your residuals have constant variance and a normal distribution. Instead, an alternative approach to obtaining prediction intervals is necessary. Again, we will not address how to do this until later in the book.
+
+The first three properties are the same as that of white noise.  
+
+> When applying a forecasting method, it is important to always check that the residuals are well-behaved (i.e., no outliers or patterns) and resemble white noise. The prediction intervals are computed assuming that the residuals are also normally distributed. You can use the checkresiduals() function to verify these characteristics; it will give the results of a Ljung-Box test.
+
+Lets look at the residuals of the naive forecasting of the goog time series. The residuals plot is not showing any pattern. The ACF plot has only one value with correlation < -0.05. The Ljung-Box test gives a p-value much higher than 0.05 indicating they are not statistically significant. Hence, we can conclude that the residuals resemble white noise.The histogram is also normally distributed. 
+
+```{r}
+checkresiduals(naive(goog))
+```
+
+
+Lets look at residuals of another series ausbeer.   
+
+The results here are opposite of what we saw for the previous series and the residuals are not white noise. 
+
+
+```{r}
+checkresiduals(snaive(ausbeer))
+```
+
+
+
+### Forecast Accuracy
+
+The window(), subset() and head/tail() can be used for splitting the data in train and test
+
+```{r}
+window(ausbeer,start = 2008)
+#extracts the last 5 years of observations from ausbeer.
+subset(ausbeer,start = length(ausbeer)- 4 *5)
+subset(ausbeer,quarter =1)
+
+```
+
+Comparing the forecast accuracy using the naive() method and meanf(), which gives forecasts equal to the mean of all observations. 
+
+> The accuracy function returns range of summary measures of the forecast accuracy. If x is provided, the function measures test set forecast accuracy based on x-f. If x is not provided, the function only produces training set accuracy measures of the forecasts based on f["x"]-fitted(f). All measures are defined and discussed in Hyndman and Koehler (2006).
+
+
+```{r}
+# Create the training data as train
+train <- subset(gold, end = 1000)
+
+# Compute naive forecasts and save to naive_fc
+naive_fc <- naive(train, h = length(gold)- 1000)
+
+# Compute mean forecasts and save to mean_fc
+mean_fc <- meanf(train, h = 108)
+
+# Use accuracy() to compute RMSE statistics
+accuracy(naive_fc, gold)
+accuracy(mean_fc, gold)
+
+# Assign one of the two forecasts as bestforecasts
+bestforecasts <- naive_fc
+
+```
+Evaluating forecast accuracy of seasonal methods
+
+__The fpp2 doesnt seem to have the latest vn data. Hence using fpp__
+
+```{r}
+
+# Create three training series omitting the last 1, 2, and 3 years
+train1 <- window(vn[, "Melbourne"], end = c(2010, 4))
+train2 <- window(vn[, "Melbourne"], end = c(2009, 4))
+train3 <- window(vn[, "Melbourne"], end = c(2008, 4))
+
+# Produce forecasts using snaive()
+#To compute one year of forecasts, you need to set h equal to the number of quarters in one year.
+fc1 <- snaive(train1, h = 4)
+fc2 <- snaive(train2, h = 4)
+fc3 <- snaive(train3, h = 4)
+
+# Use accuracy() to compare the MAPE of each series
+accuracy(fc1, vn[, "Melbourne"])["Test set", "MAPE"]
+accuracy(fc2, vn[, "Melbourne"])["Test set", "MAPE"]
+accuracy(fc3, vn[, "Melbourne"])["Test set", "MAPE"]
+
+
+```
+
+
+>A good model forecasts well (so has low RMSE on the test set) and uses all available information in the training data (so has white noise residuals).
+
+
+### Time Series Cross Validation
+
+>tsCV computes the forecast errors obtained by applying forecastfunction to subsets of the time series y using a rolling forecast origin.
+
+Note the MSE is manually calculated  
+
+
+```{r}
+# Compute cross-validated errors for up to 8 steps ahead
+e <- tsCV(goog, forecastfunction = naive, h = 8)
+
+# Compute the MSE values and remove missing values
+mse <- colMeans(e^2, na.rm = TRUE)
+
+# Plot the MSE values against the forecast horizon
+data.frame(h = 1:8, MSE = mse) %>%
+  ggplot(aes(x = h, y = MSE)) + geom_point()
+
+```
+
+
+__Another error function created in the video. TBD__   
+
+As the time horizon increases the forecast accuracy drops. We can set a particular time horizon and then use different forecasting functions to see which one has a lower error
+
+```{r}
+sq <- function(u){u^2}  
+for(h in 1:10) {  
+        oil %>% 
+        tsCV(forecastfunction = naive, h = h) %>% 
+        sq() %>% 
+        mean(na.rm = TRUE) %>% 
+        print() 
+    }
+
+```
+
+## Summary
+* The __naive() and snaive()__ can be used to establish some baseline benchmark forecasts  
+* There are transformations and adjustments that can be applied to the data to improve forecast accuracy. (TBD from the book)  
+* The __checkresiduals()__ can be used to check whether the residuals are uncorelated, have zero mean, have constant variance and are  normally distributed. They need to resumble white noise
+* The __window(), subset() and head/tail()__ can be used for splitting the data in train and test and after forecasting the __accuracy()__ can be used to compare the test and training data
+* The __tsCV()__ computes the forecast errors obtained by applying forecastfunction to subsets of the time series y using a rolling forecast origin.
+
+
+
+
+

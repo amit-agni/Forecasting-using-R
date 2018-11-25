@@ -1,0 +1,438 @@
+---
+title: 'Chapter 4 : ARIMA'
+author: "Amit Agni"
+date: "06/10/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(forecast)
+library(fpp2)
+library(here)
+```
+
+
+#### Transformations for variance stabilization
+
+If the variation in the data increases as the level of the series increases, then we can use a transformation. In ets() the multiplicative errors and multiplicative seasonality are be used to handle the variations.  
+
+Some examples of transformations for stabilizing the variations are  Square root $\rightarrow$ Cube Root $\rightarrow$ Logarithm $\rightarrow$ Inverse __(in the increasing order of their strength)__
+
+Objective is to relatively even out the flucations   
+Example :
+```{r}
+autoplot(usmelec) + xlab("Year") + ylab("US Monthly net electricity generation")
+
+g<-autoplot(cbind(original = usmelec
+               ,sq_rt=usmelec^0.5
+               ,cube_rt=usmelec^0.333
+               ,log=log(usmelec)
+               ,inverse=-1/usmelec)) +
+    facet_wrap(~series,scales = "free_y")
+    #facet_grid(.~series,scales = "free")
+g
+
+```
+
+The height/widths of the above plot needs to be adjusted so that the reduction in the fluctuations is clearly visible. I tried the gtable() package to adjust the heights of the individual facets but wasn't sucessful. __ggplot() internals is now in my To Do list.__  
+
+So, I will plot the transformations sepately  
+
+```{r}
+autoplot(usmelec^0.5)
+autoplot(usmelec^0.333)
+```
+
+In the log plot the fluctuations at the top end are little larger than at the bottom end. The inverse plot is better here the fluctuations at the bottom end are little larger. We need a function that is in between the log and inverse to stablise this series
+
+```{r}
+autoplot(log(usmelec))
+autoplot(-1/usmelec)
+
+```
+
+All the above transformations belong to a family of Box-Cox transformations which depend on the parameter $\lambda$ :
+
+$w_{t}  =  \begin{cases} \log(y_{t}) \;\;\;\;\;\;\;\; if \lambda=0; \\ (y_t^\lambda-1)/\lambda \;\;\;\; otherwise    \end{cases}$  
+
+>The logarithm in a Box-Cox transformation is always a natural logarithm (i.e., to base $e$). So if  $\lambda=0$, natural logarithms are used, but if  $\lambda \neq 0$ , a power transformation is used, followed by some simple scaling.  
+
+
+>If  $\lambda=1$, then  $w_{t} = y_{t} - 1$, so the transformed data is shifted downwards but there is no change in the shape of the time series. But for all other values of $\lambda$, the time series will change shape.
+
+So for the above plots the values of lambda are as below :  
+* $\lambda = 1$ No transformation   
+* $\lambda = \frac{1}{2}$ Square root  
+* $\lambda = \frac{1}{3}$ Cube root  
+* $\lambda = 0$ Natural log transformation  
+* $\lambda = -1$ Inverse transformation  
+
+We can use the BoxCox function in the forecast package that would determine the value of lambda, which in our case it gives -0.57 which is in between 0 and -1.
+```{r}
+
+BoxCox.lambda(usmelec)
+```
+
+
+And then give the lambda to the ets function. As mentioned above, ets function (Exponential Smoothing doesnt need the lambda to stablise the series but it is needed for ARIMA.
+
+```{r}
+usmelec %>%
+        ets(lambda = -0.57) %>%
+        forecast(h=60) %>%
+        autoplot()
+
+```
+
+```{r}
+# Plot the series
+autoplot(a10)
+
+# Try four values of lambda in Box-Cox transformations
+a10 %>% BoxCox(lambda = 0) %>% autoplot()
+a10 %>% BoxCox(lambda = 0.1) %>% autoplot()
+a10 %>% BoxCox(lambda = 0.2) %>% autoplot()
+a10 %>% BoxCox(lambda = 0.3) %>% autoplot()
+
+# Compare with BoxCox.lambda()
+BoxCox.lambda(a10)
+```
+
+
+>ARIMA models provide another approach to time series forecasting. __Exponential smoothing and ARIMA models__ are the two most widely used approaches to time series forecasting, and provide complementary approaches to the problem. While exponential smoothing models are based on a description of the trend and seasonality in the data, ARIMA models aim to describe the autocorrelations in the data.
+
+>Before we introduce ARIMA models, we must first discuss the concept of stationarity and the technique of differencing time series.
+
+
+### Stationarity
+A stationary time series is one whose properties do not depend on the time at which the series is observed.  
+
+Time series without any trends and seasonality  are called stationary series eg white noise series. Cyclic time series with no trend or seasonality are also stationary, because the length of cycles are not fixed. 
+
+![](`r here("images","stationarity_chp4.jpeg")`)
+
+* d,h,i show seasonality  
+* a,c,e,f and i shows trends and changing levels
+* i also show increasing variance
+* b is a clear case of stationarity
+
+Whereas g appears to be cyclic with a seasonal pattern but a close looks shows the the cycles are aperiodic and hencein long-term the timing of these cycles are not predictable and hence it is a stationary series
+
+
+### Differencing
+Comparing a which shows daily google stock price with b which shows the daily change in the price, we can can see that differencing is one way to make a non-stationary series stationary.
+
+>Transformations such as logarithms can help to stabilise the variance of a time series. Differencing can help stabilise the mean of a time series by removing changes in the level of a time series, and therefore eliminating (or reducing) trend and seasonality.
+
+>Differencing is a way of making a time series stationary; this means that you remove any systematic patterns such as trend and seasonality from the data. A white noise series is considered a special case of a stationary time series.
+
+>With non-seasonal data, you use lag-1 differences to model changes between observations rather than the observations directly. You have done this before by using the diff() function.
+
+>In this exercise, you will use the pre-loaded wmurders data, which contains the annual female murder rate in the US from 1950-2004.
+
+
+```{r}
+# Plot the US female murder rate
+autoplot(wmurders)
+#not stationary
+ggAcf(wmurders)
+
+# Plot the differenced murder rate
+autoplot(diff(wmurders))
+
+# Plot the ACF of the differenced murder rate
+ggAcf(diff(wmurders))
+
+```
+
+> Great! It seems like the data look like white noise after differencing.
+
+### Seasonal differencing for stationarity
+>With seasonal data, differences are often taken between observations in the same season of consecutive years, rather than in consecutive periods. For example, with quarterly data, one would take the difference between Q1 in one year and Q1 in the previous year. This is called seasonal differencing.
+
+>Sometimes you need to apply both seasonal differences and lag-1 differences to the same series, thus, calculating the differences in the differences.
+
+>In this exercise, you will use differencing and transformations simultaneously to make a time series look stationary. The data set here is h02, which contains 17 years of monthly corticosteroid drug sales in Australia. It has been loaded into your workspace.
+
+>__Set the lag argument in diff() equal 12 because the seasonal pattern in the series is monthly.__
+
+
+```{r}
+# Plot the data
+autoplot(h02)
+
+#Take the log() of the h02 data and then apply seasonal differencing by using an appropriate lag value in diff(). Assign this to difflogh02.
+difflogh02 <- diff(log(h02), lag = 12)
+
+# Plot difflogh02
+autoplot(difflogh02)
+
+#TO DO : Why not lag = 4 ???
+autoplot(diff(log(h02), lag = 4))
+
+
+# Take another difference and plot
+#Because difflogh02 still looks non-stationary, take another lag-1 difference by applying diff() to itself and save this to ddifflogh02. Plot the resulting series.
+
+ddifflogh02 <- diff(difflogh02)
+autoplot(ddifflogh02)
+
+
+# Plot ACF of ddifflogh02
+ggAcf(ddifflogh02)
+
+```
+
+>Great! The data doesn't look like white noise after the transformation, but you could develop an ARIMA model for it.
+
+### ARIMA
+
+AR - Autoregressive models (AR) is the multiple linear regression of the variable using the past values of the varable. It is like multiple regression with lagged values of predictors. Its referred as $AR_{(p)}$ model, an autoregressive model of order p.  
+MA - Moving average model uses the past forecast error instead of the past values of the forecast variable in a regression. It is referred as $MA_{(q)}$ model, a moving average model of order q.  
+
+Combing AR and MA gives the ARMA model which uses the last p lagged observations and last q lagged errors as predictors.  ARMA works only with stationary models,so the data needs to be differenced first
+
+>If we combine differencing with autoregression and a moving average model, we obtain a non-seasonal ARIMA model. ARIMA is an acronym for AutoRegressive Integrated Moving Average (in this context, “integration” is the reverse of differencing).
+
+These are called $ARIMA_{(p,d,q)}$ models where  
+* p = order of the autogressive part  
+* d = degree of first differencing involved  
+* q = order of the moving average part
+
+The auto.arima() minimises the AICc values similar to the ESM model (ets) but both the values cannot be compared. Cant compare with models with different amounts of differencing.
+
+
+### Automatic ARIMA models for non-seasonal time series
+
+>In the video, you learned that the auto.arima() function will select an appropriate autoregressive integrated moving average (ARIMA) model given a time series, just like the ets() function does for ETS models.
+
+>In this exercise, you will automatically choose an ARIMA model for the pre-loaded austa series, which contains the annual number of international visitors to Australia from 1980-2015. You will then check the residuals (recall that a p-value greater than 0.05 indicates that the data resembles white noise) and produce some forecasts. Other than the modelling function, this is identicial to what you did with ETS forecasting.
+
+
+
+```{r}
+# Fit an automatic ARIMA model to the austa series
+fit <- auto.arima(austa)
+
+
+# Check that the residuals look like white noise
+checkresiduals(fit)
+residualsok <- TRUE
+
+# Summarize the model
+summary(fit)
+
+# Find the AICc value and the number of differences used
+AICc <- -14.46
+d <- 1
+
+# Plot forecasts of fit
+fit %>% forecast(h = 10) %>% autoplot()
+```
+
+>Good job. It looks like the ARIMA model created a pretty good forecast for you.
+
+
+### Forecasting with ARIMA models
+
+>The automatic method in the previous exercise chose an ARIMA(0,1,1) with drift model for the austa data
+
+>You will now experiment with various other ARIMA models for the data to see what difference it makes to the forecasts.
+
+>The Arima() function can be used to select a specific ARIMA model. Its first argument, order, is set to a vector that specifies the values of p,d and q. The second argument, include.constant, is a booolean that determines if the constant c or drift, should be included.
+
+
+
+```{r}
+# Plot forecasts from an ARIMA(0,1,1) model with no drift
+austa %>% Arima(order = c(0,1,1), include.constant = FALSE) %>% forecast() %>% autoplot()
+
+# Plot forecasts from an ARIMA(2,1,3) model with drift
+austa %>% Arima(order = c(2,1,3), include.constant = TRUE) %>% forecast() %>% autoplot()
+
+# Plot forecasts from an ARIMA(0,0,1) model with a constant
+austa %>% Arima(order = c(0,0,1), include.constant = TRUE) %>% forecast() %>% autoplot()
+
+# Plot forecasts from an ARIMA(0,2,1) model with no constant
+austa %>% Arima(order = c(0,2,1), include.constant = FALSE) %>% forecast() %>% autoplot()
+```
+
+Watch for how the different models affect the forecasts and the prediction intervals. The model specification makes a big impact on the forecast!
+
+### Comparing auto.arima() and ets() on non-seasonal data
+>The AICc statistic is useful for selecting between models in the same class. For example, you can use it to select an ETS model or to select an ARIMA model. However, you cannot use it to compare ETS and ARIMA models because they are in different model classes.
+
+> Instead, you can use time series cross-validation to compare an ARIMA model and an ETS model on the austa data. Because tsCV() requires functions that return forecast objects, you will set up some simple functions that fit the models and return the forecasts. The arguments of tsCV() are a time series, forecast function, and forecast horizon h.
+
+>In this exercise, you will compare the MSE of two forecast functions applied to austa, and plot forecasts of the function that computes the best forecasts. Once again, austa has been loaded into your workspace.
+__TO DO : What is one-step error??__
+
+```{r}
+# Set up forecast functions for ETS and ARIMA models
+fets <- function(x, h) {
+  forecast(ets(x), h = h)
+}
+farima <- function(x, h) {
+  forecast(auto.arima(x), h=h)
+}
+
+#Compute cross-validated errors for ETS models on austa using tsCV() with one-step errors, and save this to e1
+#INCORRECT SUBMISSION : In your first tsCV() call, are you using one-step errors? Set h to 1?
+    
+e1 <- tsCV(austa, fets, h=1)
+
+# Compute CV errors for ARIMA as e2
+e2 <- tsCV(austa, farima, h=1)
+
+# Find MSE of each model class
+mean(e1^2,na.rm = TRUE)
+mean(e2^2,na.rm = TRUE)
+
+# Plot 10-year forecasts using the best model class
+austa %>% farima(h=10) %>% autoplot()
+```
+
+
+### Automatic ARIMA models for seasonal time series
+
+
+> So far, we have restricted our attention to non-seasonal data and non-seasonal ARIMA models. However, ARIMA models are also capable of modelling a wide range of seasonal data.
+
+> A seasonal ARIMA model is formed by including additional seasonal terms in the ARIMA models we have seen so far. It is written as follows:
+
+$ARIMA \;\; \underbrace{(p,d,q)} \;\; \underbrace{ (P,D,Q)_{m}}$
+
+$\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\;\; \uparrow \;\;\;\;\;\;\;\;\;\;\;\;\; \uparrow$
+
+$\;\; Non-Seaonal \;\;\;\;\;\; Seasonal$
+
+>where  m= number of observations per year. We use uppercase notation for the seasonal parts of the model, and lowercase notation for the non-seasonal parts of the model.
+
+>The seasonal part of the model consists of terms that are similar to the non-seasonal components of the model, but involve backshifts of the seasonal period. 
+
+![](`r here("images","arima_seasonal_chp4.jpeg")`)
+
+>As you learned in the video, the auto.arima() function also works with seasonal data. Note that setting lambda = 0 in the auto.arima() function - applying a log transformation - means that the model will be fitted to the transformed data, and that the forecasts will be back-transformed onto the original scale.
+
+
+```{r}
+# Check that the logged h02 data have stable variance
+h02 %>% log() %>% autoplot()
+
+# Fit a seasonal ARIMA model to h02 with lambda = 0
+fit <- auto.arima(h02,lambda = 0)
+
+# Summarize the fitted model
+summary(fit)
+
+# Record the amount of lag-1 differencing and seasonal differencing used
+d <- 1
+D <- 1
+
+# Plot 2-year forecasts
+frequency(h02)
+# Frequency is monthly? hence h=24
+fit %>% forecast(h=24) %>% autoplot()
+
+```
+
+###Exploring auto.arima() options
+
+>The auto.arima() function needs to estimate a lot of different models, and various short-cuts are used to try to make the function as fast as possible. This can cause a model to be returned which does not actually have the smallest AICc value. To make auto.arima() work harder to find a good model, add the optional argument stepwise = FALSE to look at a much larger collection of models.
+
+
+```{r}
+# Find an ARIMA model for euretail
+fit1 <- auto.arima(euretail)
+
+# Don't use a stepwise search
+fit2 <- auto.arima(euretail,stepwise = FALSE)
+
+summary(fit1)
+summary(fit2)
+
+# AICc of better model
+AICc <- 68.39
+
+# Compute 2-year forecasts from better model
+frequency(euretail)
+# quaterly, hence h = 8
+fit2 %>% forecast(h=8) %>% autoplot()
+
+```
+
+
+###Comparing auto.arima() and ets() on seasonal data
+
+>What happens when you want to create training and test sets for data that is more frequent than yearly? If needed, you can use a vector in form c(year, period) for the start and/or end keywords in the window() function. You must also ensure that you're using the appropriate values of h in forecasting functions. Recall that h should be equal to the length of the data that makes up your test set.
+
+>For example, if your data spans 15 years, your training set consists of the first 10 years, and you intend to forecast the last 5 years of data, you would use h = 12 * 5 not h = 5 because your test set would include 60 monthly observations. If instead your training set consists of the first 9.5 years and you want forecast the last 5.5 years, you would use h = 66 to account for the extra 6 months.
+
+>In the final exercise for this chapter, you will compare seasonal ARIMA and ETS models applied to the quarterly cement production data qcement. Because the series is very long, you can afford to use a training and test set rather than time series cross-validation. This is much faster.
+
+
+```{r}
+
+# Use 20 years of the qcement data beginning in 1988
+#Create a training set called train consisting of 20 years of qcement data beginning in the year 1988 and ending at the last quarter of 2007; you must use a vector for end. The remaining data is your test set.
+
+#Did you set the end argument to the last quarter of 2007? It should be of the form c(year, period).
+
+train <- window(qcement, start = 1988, end = c(2007,4))
+
+# Fit an ARIMA and an ETS model to the training data
+fit1 <- ets(train)
+fit2 <- auto.arima(train)
+
+# Check that both models have white noise residuals
+checkresiduals(fit1)
+checkresiduals(fit2)
+
+# Produce forecasts for each model
+#Create a training set called train consisting of 20 years of qcement data beginning in the year 1988 and ending at the last quarter of 2007; you must use a vector for end. The remaining data is your test set.
+
+#The last data point in qcement is in the first quarter of 2014, and the last data point in the training set is in the fourth quarter of 2007. Therefore, h in forecast() is equal to  1+(4∗(2013−2007))
+
+fc1 <- forecast(fit1, h = 25)
+fc2 <- forecast(fit2, h = 25)
+
+# Use accuracy() to find better model based on RMSE
+
+#You do not need to set up a test set. Just pass the whole of qcement as the test set to accuracy() and it will find the relevant part to use in comparing with the forecasts.
+
+accuracy(fc1,qcement)
+accuracy(fc2,qcement)
+bettermodel <- fc2
+
+
+
+```
+
+#Summary
+
+* Exponential Smoothing, ets() and Arima auto.arima() are two of the common methods used for forecasting time series  
+
+* Exponential smoothing models are based on the description of the trend and seasonality in the data, the ARIMA models describe the autocorrelations in the data
+
+* ESM are useful when you want quick forecasts whereas ARIMA can produce more accurate forecasts and confidence intervals
+
+* The process of removing the effects of trends / seasons that exist in the data is called making the time series stationary. A stationary series is the one where the mean of the series is not a function of time  
+* Most of the models like naive, snaive, or the ESM do not require the stationary time series but it is a required for ARIMA  
+
+* Transformations like Square root $\rightarrow$ Cube Root $\rightarrow$ Logarithm $\rightarrow$ Inverse __(in the increasing order of their strength)__ an be applied to make a series stationary, alternatively we can use __BoxCox.lambda()__ can be used to find the lambda value that will make the series stationary  
+
+* Transformations such as logarithms can help to stabilise the variance of a time series. __Differencing__ can help stabilise the mean of a time series by removing changes in the level of a time series, and therefore eliminating (or reducing) trend and seasonality  
+
+* The forecast generated by the baseline models can be further improved by considering the autocorrelation that exists in the data (ie the correlation between the variable with its previous period of time)
+
+* The __auto.arima()__ function will select an appropriate autoregressive integrated moving average (ARIMA) model given a time series, just like the ets() function does for ETS models.
+
+* It gives (p,d,q) , p being the p lagged vales of predictors used, q being the q lagged forecast errors used and d being the degree of first differencing 
+
+* The __arima()__ function can be used to manually specify the order of values for p,d,q  
+
+* The __auto.arima()__ can be also be used for seasonal ARIMA models
+
+* TO DO : The video mentioned another course in DataCamp on ARIMA model
+
