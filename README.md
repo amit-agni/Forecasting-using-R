@@ -24,6 +24,12 @@ Syntax highlighted code block
 **Bold** and _Italic_ and `Code` text
 
 [Link](url) and ![Image](src)
+
+
+
+[chaper 1](Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
+      
+      
 ```
 
 For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
