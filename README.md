@@ -32,6 +32,11 @@ Syntax highlighted code block
       
 ```
 
+
+[chaper 1](https://github.com/amit-agni/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
+      
+
+
 For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
 
 ### Jekyll Themes
