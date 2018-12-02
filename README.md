@@ -25,15 +25,14 @@ Syntax highlighted code block
 
 [Link](url) and ![Image](src)
 
-
-
-[chaper 1](https://github.com/amit-agni/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
       
       
 ```
 
+https://amit-agni.github.io/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html
 
-[chaper 1](https://github.com/amit-agni/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
+
+[chaper 1](https://amit-agni.github.io/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
       
 
 
