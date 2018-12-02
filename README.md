@@ -1,3 +1,16 @@
+[1: Exploring and Visualising Time Series in R](https://amit-agni.github.io/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
+
+[2: Benchmark methods and forecast accuracy](https://amit-agni.github.io/Forecasting-using-R/Chapter_2_Benchmark_methods_and_forecast_accuracy.html)
+
+[3: Exponential Smoothing](https://amit-agni.github.io/Forecasting-using-R/Chapter_3_Exponential_Smoothing.html)
+
+[4: ARIMA](https://amit-agni.github.io/Forecasting-using-R/Chapter_4_ARIMA.html)
+
+[5: Advanced methods](https://amit-agni.github.io/Forecasting-using-R/Chapter_5_Advanced_Methods.html)
+
+
+
+
 ## Welcome to GitHub Pages
 
 You can use the [editor on GitHub](https://github.com/amit-agni/Forecasting-using-R/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
@@ -32,7 +45,6 @@ Syntax highlighted code block
 https://amit-agni.github.io/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html
 
 
-[chaper 1](https://amit-agni.github.io/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
       
 
 
