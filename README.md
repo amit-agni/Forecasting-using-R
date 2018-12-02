@@ -27,7 +27,7 @@ Syntax highlighted code block
 
 
 
-[chaper 1](Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
+[chaper 1](https://github.com/amit-agni/Forecasting-using-R/Chapter_1_Exploring_and_Visualising_Time_Series_in_R.html)
       
       
 ```
